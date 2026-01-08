@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flying Doghouse</title>
+    <style>
+        /* --- 1. General Styles & Theme Variables --- */
+        :root {
+            --peanuts-red: #D32F2F;
+            --peanuts-black: #222;
+            --sky-day-top: #56CCF2;
+            --sky-day-bot: #2F80ED;
+            --sky-break-top: #FF9966;
+            --sky-break-bot: #FF5E62;
+        }
+        body {
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            padding-top: 5vh;
+            font-family: 'Arial Rounded MT Bold', 'Comic Sans MS', Arial, sans-serif; 
+            background: linear-gradient(to bottom, var(--sky-day-top) 0%, var(--sky-day-bot) 100%);
+            overflow: hidden;
+            user-select: none;
+            transition: background 1s ease;
+        }
+
+        /* --- 2. Timer UI Styling --- */
+        .timer-container {
+            text-align: center;
+            z-index: 50; 
+            color: white;
+            text-shadow: 2px 2px 0px var(--peanuts-black);
+            position: relative;
+        }
+
+        .timer-display { font-size: 6rem; margin: 0; letter-spacing: -2px; }
+        .status-label { font-size: 1.8rem; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 5px; }
+        .controls { margin-top: 15px; display: flex; gap: 15px; justify-content: center; }
+
+        button {
+            background: var(--peanuts-red);
+            border: 3px solid white;
+            color: white;
+            padding: 10px 25px;
+            font-size: 1.2rem;
+            border-radius: 30px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            outline: none;
+            font-family: inherit;
+            box-shadow: 3px 3px 0px var(--peanuts-black);
+        }
+        button:hover { transform: translate(-2px, -2px); box-shadow: 5px 5px 0px var(--peanuts-black); background: #ff4f4f; }
+        button:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0px var(--peanuts-black); }
+
+        /* --- 3. The Flying Machine (Container) --- */
+        .flying-machine {
+            position: absolute;
+            bottom: 0; /* Starts on ground */
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10;
+            width: 300px; height: 350px;
+            pointer-events: none;
+            transition: bottom 1s cubic-bezier(0.5, 0, 0.5, 1.5); /* Smooth takeoff */
+        }
+
+        /* State: Flying Active */
+        /* Moves the WHOLE house up */
+        .flying-machine.is-flying {
+            bottom: 250px; /* Altitude */
+            animation: planeHover 2.5s ease-in-out infinite alternate;
+        }
+
+        /* --- 4. The Shadow (Stays on ground) --- */
+        .ground-shadow {
+            position: absolute;
+            bottom: 50px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 200px; height: 20px;
+            background: rgba(0,0,0,0.3);
+            border-radius: 50%;
+            z-index: 5;
+            transition: all 1s ease;
+            opacity: 0; /* Hidden when landed (house covers it) */
+        }
+
+        /* Shadow shrinks when flying */
+        .is-flying-shadow {
+            opacity: 1;
+            width: 100px; /* Shadow gets smaller as object goes higher */
+            bottom: 20px;
+            filter: blur(5px);
+        }
+
+        /* --- 5. The Doghouse --- */
+        .doghouse {
+            position: absolute;
+            bottom: 0; left: 50%;
+            transform: translateX(-50%);
+            width: 100%; height: 100%;
+        }
+
+        .roof {
+            position: absolute;
+            bottom: 120px; left: 50%;
+            transform: translateX(-50%);
+            width: 0; height: 0;
+            border-left: 110px solid transparent;
+            border-right: 110px solid transparent;
+            border-bottom: 90px solid var(--peanuts-red);
+            z-index: 2;
+        }
+        /* Roof Depth */
+        .roof::after {
+            content: ''; position: absolute;
+            top: 5px; left: -100px;
+            border-left: 100px solid transparent;
+            border-right: 100px solid transparent;
+            border-bottom: 82px solid #9e1b1b;
+            z-index: -1;
+        }
+        .house-base {
+            position: absolute;
+            bottom: 0; left: 50%;
+            transform: translateX(-50%);
+            width: 160px; height: 124px;
+            background-color: var(--peanuts-red);
+            border: 4px solid var(--peanuts-black);
+            border-bottom: none;
+            z-index: 1;
+        }
+        /* Doorway */
+        .house-base::after {
+            content: ''; position: absolute;
+            bottom: 0; left: 50%;
+            transform: translateX(-50%);
+            width: 60px; height: 80px;
+            background-color: var(--peanuts-black);
+            border-radius: 60px 60px 0 0;
+        }
+
+        /* --- 6. Dog Character --- */
+        .dog {
+            position: absolute;
+            z-index: 20;
+            left: 50%;
+            transition: all 0.8s ease;
+        }
+
+        /* --- POSE 1: Resting (Default) --- */
+        /* Lying on back on the roof */
+        .dog {
+            top: 145px; /* Positioned on roof slope */
+            transform: translateX(-60%) rotate(-105deg); /* Lying back */
+        }
+
+        /* --- POSE 2: Flying (Active) --- */
+        /* Sitting up "Piloting" */
+        .flying-machine.is-flying .dog {
+            top: 110px; /* Moves up to sit */
+            transform: translateX(-55%) rotate(0deg); /* Upright */
+        }
+
+        /* dog Body Parts */
+        .s-head {
+            width: 75px; height: 55px;
+            background: white;
+            border: 3px solid var(--peanuts-black);
+            border-radius: 45% 55% 50% 50% / 55% 60% 40% 45%;
+            position: relative; z-index: 2;
+        }
+        .s-head::after { /* Nose */
+            content: ''; position: absolute;
+            right: -5px; top: 18px;
+            width: 14px; height: 12px;
+            background: var(--peanuts-black);
+            border-radius: 50%;
+        }
+        .s-eye {
+            position: absolute; top: 15px; right: 25px;
+            width: 8px; height: 8px;
+            border-bottom: 3px solid var(--peanuts-black);
+            border-radius: 50%;
+        }
+        .s-ear {
+            position: absolute; left: -8px; top: 5px;
+            width: 28px; height: 42px;
+            background: var(--peanuts-black);
+            border-radius: 50% 50% 40% 40%;
+            transform: rotate(10deg); z-index: 3;
+            transition: transform 0.5s;
+        }
+        /* Ear flies back when flying */
+        .flying-machine.is-flying .s-ear {
+            transform: rotate(80deg) translateX(10px);
+        }
+
+        .s-collar {
+            width: 35px; height: 8px;
+            background: var(--peanuts-red);
+            border: 3px solid var(--peanuts-black);
+            border-radius: 10px;
+            position: absolute; top: 46px; left: 18px; z-index: 1;
+        }
+        .s-body {
+            width: 45px; height: 35px;
+            background: white;
+            border: 3px solid var(--peanuts-black);
+            border-radius: 40% 40% 50% 50%;
+            position: absolute; top: 50px; left: 14px; z-index: 0;
+        }
+        
+        /* The Scarf (Hidden when resting) */
+        .s-scarf {
+             position: absolute;
+             top: 50px; left: -15px;
+             width: 70px; height: 20px;
+             background: var(--peanuts-red);
+             border: 3px solid var(--peanuts-black);
+             border-radius: 50% 10% 50% 10%;
+             z-index: 4;
+             transform-origin: right center;
+             opacity: 0;
+             transition: opacity 0.5s ease;
+        }
+
+        .flying-machine.is-flying .s-scarf {
+            opacity: 1;
+            animation: scarfFlow 0.3s linear infinite alternate;
+        }
+
+        /* --- Animations --- */
+        @keyframes planeHover {
+            0% { transform: translateX(-50%) translateY(0); }
+            100% { transform: translateX(-50%) translateY(-20px); }
+        }
+
+        @keyframes scarfFlow {
+             0% { transform: scaleX(1) rotate(0deg); }
+             100% { transform: scaleX(1.1) rotate(10deg) translateY(-5px); }
+        }
+
+        /* --- 7. Cloud Environment --- */
+        .cloud-wrapper {
+            position: absolute; bottom: 0; left: 0;
+            width: 100%; height: 60vh;
+            pointer-events: none; z-index: 1;
+        }
+        .cloud {
+            background: rgba(255, 255, 255, 0.9);
+            width: 300px; height: 100px;
+            border-radius: 150px; position: absolute;
+            animation: moveClouds 25s linear infinite;
+            border: 4px solid #d1dbe4;
+        }
+        .cloud::after, .cloud::before {
+            content: ''; background: inherit; position: absolute; border-radius: 50%;
+            border-top: 4px solid #d1dbe4;
+        }
+        .cloud::after { width: 100px; height: 100px; top: -50px; left: 50px; }
+        .cloud::before { width: 120px; height: 120px; top: -70px; right: 50px; }
+
+        @keyframes moveClouds {
+            0% { transform: translateX(-350px); }
+            100% { transform: translateX(100vw); }
+        }
+        /* Clouds at different heights */
+        .c1 { bottom: 10%; opacity: 1.0; transform: scale(1); animation-duration: 35s; }
+        .c2 { bottom: 40%; opacity: 0.8; transform: scale(0.7); animation-duration: 55s; animation-delay: -10s; }
+        .c3 { bottom: 25%; opacity: 0.9; transform: scale(0.9); animation-duration: 45s; animation-delay: -25s; }
+        .c4 { bottom: 60%; opacity: 0.7; transform: scale(0.6); animation-duration: 65s; animation-delay: -5s; }
+
+    </style>
+</head>
+<body>
+
+    <div class="timer-container">
+        <div class="status-label" id="status-label">Prepare for Takeoff</div>
+        <h1 class="timer-display" id="timer">25:00</h1>
+        <div class="controls">
+            <button id="toggle">Start Mission</button>
+            <button id="reset">Reset</button>
+        </div>
+    </div>
+
+    <div class="ground-shadow" id="shadow"></div>
+
+    <div class="flying-machine" id="machine">
+        
+        <div class="dog">
+            <div class="s-ear"></div>
+            <div class="s-head">
+                <div class="s-eye"></div>
+            </div>
+            <div class="s-collar"></div>
+            <div class="s-body"></div>
+            <div class="s-scarf"></div>
+        </div>
+
+        <div class="doghouse">
+            <div class="roof"></div>
+            <div class="house-base"></div>
+        </div>
+    </div>
+
+    <div class="cloud-wrapper">
+        <div class="cloud c1"></div>
+        <div class="cloud c2"></div>
+        <div class="cloud c3"></div>
+        <div class="cloud c4"></div>
+    </div>
+
+    <script>
+        // --- Configuration ---
+        const WORK_TIME = 25 * 60; 
+        const BREAK_TIME = 5 * 60; 
+
+        // --- State ---
+        let timeLeft = WORK_TIME;
+        let isRunning = false;
+        let isWorkSession = true;
+        let timerInterval = null;
+
+        // --- DOM Elements ---
+        const timerDisplay = document.getElementById('timer');
+        const toggleBtn = document.getElementById('toggle');
+        const resetBtn = document.getElementById('reset');
+        const statusLabel = document.getElementById('status-label');
+        const machine = document.getElementById('machine');
+        const shadow = document.getElementById('shadow');
+        const body = document.body;
+
+        // --- Functions ---
+        function formatTime(seconds) {
+            const m = Math.floor(seconds / 60);
+            const s = seconds % 60;
+            return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+        }
+
+        function updateDisplay() {
+            timerDisplay.textContent = formatTime(timeLeft);
+            document.title = `${formatTime(timeLeft)} - Flying Ace`;
+        }
+
+        function updateAnimationState() {
+            if (isRunning) {
+                machine.classList.add('is-flying');
+                shadow.classList.add('is-flying-shadow');
+            } else {
+                machine.classList.remove('is-flying');
+                shadow.classList.remove('is-flying-shadow');
+            }
+        }
+
+        function switchMode() {
+            isWorkSession = !isWorkSession;
+            timeLeft = isWorkSession ? WORK_TIME : BREAK_TIME;
+            statusLabel.textContent = isWorkSession ? "Mission: Work" : "R&R Break";
+            
+            if (isWorkSession) {
+                body.style.background = "linear-gradient(to bottom, var(--sky-day-top) 0%, var(--sky-day-bot) 100%)";
+            } else {
+                body.style.background = "linear-gradient(to bottom, var(--sky-break-top) 0%, var(--sky-break-bot) 100%)";
+            }
+            updateDisplay();
+        }
+
+        function toggleTimer() {
+            if (isRunning) {
+                // Pause
+                clearInterval(timerInterval);
+                toggleBtn.textContent = "Resume";
+                isRunning = false;
+                statusLabel.textContent = "Mission Paused";
+            } else {
+                // Start
+                toggleBtn.textContent = "Pause";
+                isRunning = true;
+                statusLabel.textContent = isWorkSession ? "Engaging Red Baron!" : "Root Beer Time";
+                timerInterval = setInterval(() => {
+                    if (timeLeft > 0) {
+                        timeLeft--;
+                        updateDisplay();
+                    } else {
+                        clearInterval(timerInterval);
+                        isRunning = false;
+                        toggleBtn.textContent = "Start Mission";
+                        alert(isWorkSession ? "Mission accomplished! Land the plane." : "Break over! Take off!");
+                        switchMode();
+                        updateAnimationState(); 
+                    }
+                }, 1000);
+            }
+            updateAnimationState();
+        }
+
+        function resetTimer() {
+            clearInterval(timerInterval);
+            isRunning = false;
+            isWorkSession = true;
+            timeLeft = WORK_TIME;
+            statusLabel.textContent = "Prepare for Takeoff";
+            toggleBtn.textContent = "Start Mission";
+            body.style.background = "linear-gradient(to bottom, var(--sky-day-top) 0%, var(--sky-day-bot) 100%)";
+            
+            updateDisplay();
+            updateAnimationState();
+        }
+
+        // --- Event Listeners ---
+        toggleBtn.addEventListener('click', toggleTimer);
+        resetBtn.addEventListener('click', resetTimer);
+
+        // --- Init ---
+        updateDisplay();
+
+    </script>
+</body>
+</html>
